@@ -22,6 +22,27 @@ button { color: inherit; }
 button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid #a9c2ff; outline-offset: 2px; }
 [hidden] { display: none !important; }
 
+.loading-screen { position: fixed; z-index: 100; inset: 0; display: grid; align-content: center; justify-items: center; gap: 18px; color: #e8e8e8; background: #181818; }
+.loading-mark { display: flex; height: 32px; align-items: flex-end; gap: 4px; }
+.loading-mark i { width: 7px; height: 15px; border-radius: 5px; background: #c8d8aa; animation: loading-wave .9s ease-in-out infinite alternate; }
+.loading-mark i:nth-child(2) { height: 25px; animation-delay: .15s; }
+.loading-mark i:nth-child(3) { height: 19px; animation-delay: .3s; }
+.loading-spinner { width: 22px; height: 22px; border: 2px solid #ffffff22; border-top-color: #c8d8aa; border-radius: 50%; animation: loading-spin .8s linear infinite; }
+.loading-screen p { margin: 0; color: #a7a99e; font-size: 13px; }
+@keyframes loading-spin { to { transform: rotate(360deg); } }
+@keyframes loading-wave { to { transform: scaleY(.55); opacity: .6; } }
+
+.confirm-dialog { width: min(390px,calc(100% - 28px)); max-width: none; padding: 0; overflow: visible; border: 1px solid #414141; border-radius: 13px; color: #e8e8e8; background: #222; box-shadow: 0 24px 80px #0009; }
+.confirm-dialog::backdrop { background: #0009; backdrop-filter: blur(3px); }
+.confirm-dialog form { display: flex; flex-direction: column; align-items: flex-start; padding: 23px; }
+.confirm-icon { display: grid; width: 36px; height: 36px; place-items: center; border: 1px solid #784d43; border-radius: 50%; color: #f0ad98; background: #4a302b; font-size: 18px; font-weight: 700; }
+.confirm-dialog h2 { margin: 17px 0 7px; font-size: 18px; font-weight: 600; }
+.confirm-dialog p { margin: 0; color: #aaa; font-size: 13px; line-height: 1.6; }
+.confirm-dialog .dialog-actions { width: 100%; }
+.danger-button { min-height: 34px; padding: 0 13px; border: 1px solid #8e4e41; border-radius: 7px; color: #fff0ec; background: #8d493d; font-size: 11px; font-weight: 600; cursor: pointer; }
+.danger-button:hover { background: #a65344; }
+.danger-button:focus-visible { outline: 2px solid #f0ad98; outline-offset: 2px; }
+
 .app { display: flex; min-height: 100vh; }
 .auth-screen { display: grid; min-height: 100vh; grid-template-columns: minmax(0,1.02fr) minmax(440px,.98fr); color: #ecece8; background: #171816; }
 .auth-story { position: relative; display: flex; min-height: 100vh; flex-direction: column; overflow: hidden; padding: 38px clamp(34px,6.4vw,94px) 28px; border-right: 1px solid #343630; background: radial-gradient(ellipse at 18% 76%,#343b2d 0,transparent 42%),radial-gradient(ellipse at 88% 18%,#263633 0,transparent 38%),#20221e; }

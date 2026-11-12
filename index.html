@@ -8,6 +8,11 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <div class="loading-screen" id="loading-screen" role="status" aria-live="polite">
+    <span class="loading-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+    <span class="loading-spinner" aria-hidden="true"></span>
+    <p id="loading-message">Checking your account…</p>
+  </div>
   <section class="auth-screen" id="auth-screen" aria-labelledby="auth-title">
     <div class="auth-story">
       <a class="brand auth-brand" href="#" aria-label="myown home"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span><span>myown</span></a>
@@ -118,12 +123,12 @@
           <div class="summary-grid">
             <article class="summary-card events-summary">
               <div class="summary-icon violet"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg></div>
-              <div class="summary-content"><span class="summary-label">Upcoming events</span><strong class="summary-value" id="summary-event-total">3</strong><span class="summary-note"><span class="live-dot violet-dot"></span>Next one in <b id="next-event-days">8 days</b></span></div>
+              <div class="summary-content"><span class="summary-label">Upcoming events</span><strong class="summary-value" id="summary-event-total">0</strong><span class="summary-note"><span class="live-dot violet-dot"></span>Next one in <b id="next-event-days">none scheduled</b></span></div>
               <button class="card-arrow" type="button" data-page="events" aria-label="Open events"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 15 15 5M6 5h9v9"/></svg></button>
             </article>
             <article class="summary-card duty-summary">
               <div class="summary-icon mint"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v13H4zM8 7V4h8v3M8 12h8M9 16h6"/></svg></div>
-              <div class="summary-content"><span class="summary-label">Next sound duty</span><strong class="summary-value duty-name">Culture Day</strong><span class="summary-note"><span class="live-dot mint-dot"></span><b>Fri, Nov 20</b><span>·</span> Main Hall</span></div>
+              <div class="summary-content"><span class="summary-label">Next sound duty</span><strong class="summary-value duty-name">No duty scheduled</strong><span class="summary-note"><span class="live-dot mint-dot"></span><span id="next-duty-details">No upcoming event scheduled</span></span></div>
               <button class="card-arrow" type="button" data-page="team" aria-label="Open sound team"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 15 15 5M6 5h9v9"/></svg></button>
             </article>
             <article class="summary-card equipment-summary">
@@ -146,8 +151,8 @@
               <section class="panel duty-panel" aria-labelledby="duty-title">
                 <div class="panel-heading compact-heading"><div><p class="eyebrow">ON THE ROSTER</p><h2 id="duty-title">Next sound team duty</h2></div><button class="more-button" type="button" data-page="team" aria-label="View sound team">···</button></div>
                 <div class="duty-event">
-                  <div class="duty-date"><span>NOV</span><strong>20</strong><small>FRI</small></div>
-                  <div class="duty-details"><strong class="duty-name">Culture Day</strong><span>08:30 setup · Main Hall</span><div class="avatar-stack" aria-label="Andrew, Aaron, and Jaden assigned"><span title="Andrew">AN</span><span title="Aaron">AA</span><span title="Jaden">JA</span><small>3 people assigned</small></div></div>
+                  <div class="duty-date"><span>—</span><strong>—</strong><small>—</small></div>
+                  <div class="duty-details"><strong class="duty-name">No duty scheduled</strong><span>No upcoming event scheduled</span></div>
                 </div>
                 <button class="outline-action" type="button" data-page="team">View duty details <span>→</span></button>
               </section>
@@ -173,7 +178,13 @@
 
         <section class="subpage-view" id="team-view" hidden>
           <div class="subpage-heading"><div><p class="eyebrow">PEOPLE BEHIND THE SHOW</p><h1>Sound team</h1><p class="welcome-subtitle">See what’s coming up and who’s on the sound desk.</p></div></div>
-          <section class="panel team-next-panel"><div class="panel-heading"><div><p class="eyebrow">UP NEXT · FRIDAY, NOVEMBER 20</p><h2>Culture Day</h2></div><span class="status-pill assigned">3 assigned</span></div><p class="team-location">08:30 setup · Main Hall</p><div class="team-roster"><div class="team-person"><span class="person-avatar avatar-lilac">AN</span><span><strong>Andrew</strong><small>Sound team</small></span><span class="roster-check">✓</span></div><div class="team-person"><span class="person-avatar avatar-peach">AA</span><span><strong>Aaron</strong><small>Sound team</small></span><span class="roster-check">✓</span></div><div class="team-person"><span class="person-avatar avatar-blue">JA</span><span><strong>Jaden</strong><small>Sound team</small></span><span class="roster-check">✓</span></div></div></section>
+          <section class="panel team-next-panel" id="team-next-panel">
+            <div class="panel-heading">
+              <div><p class="eyebrow" id="team-next-eyebrow">UP NEXT</p><h2 id="team-next-title">No upcoming event</h2></div>
+              <span class="status-pill ready" id="team-next-status" hidden>Scheduled</span>
+            </div>
+            <p class="team-location" id="team-next-details">Create an event to start planning sound duties.</p>
+          </section>
           <section class="panel schedule-panel"><div class="panel-heading"><div><p class="eyebrow">COMING UP</p><h2>Upcoming sound duties</h2></div></div><div id="team-duty-list" class="team-duty-list"></div></section>
         </section>
 
@@ -219,6 +230,17 @@
       <div class="form-row"><div><label class="field-label" for="equipment-serial">Serial / asset number <span class="optional">Optional</span></label><input class="form-input" id="equipment-serial" maxlength="60"></div><div><label class="field-label" for="equipment-condition">Condition</label><select class="form-input" id="equipment-condition"><option value="Ready">Ready</option><option value="Needs check">Needs check</option><option value="Needs repair">Needs repair</option></select></div></div>
       <label class="field-label" for="equipment-location">Storage location <span class="optional">Optional</span></label><input class="form-input" id="equipment-location" placeholder="e.g. AV cupboard" maxlength="80">
       <div class="dialog-actions"><button class="secondary-button" type="button" id="cancel-equipment-dialog">Cancel</button><button class="primary-button" type="submit" id="save-equipment">Add item</button></div>
+    </form>
+  </dialog>
+  <dialog class="confirm-dialog" id="confirm-dialog" aria-labelledby="confirm-title" aria-describedby="confirm-message">
+    <form method="dialog">
+      <div class="confirm-icon" aria-hidden="true">!</div>
+      <h2 id="confirm-title">Are you sure?</h2>
+      <p id="confirm-message"></p>
+      <div class="dialog-actions">
+        <button class="secondary-button" type="submit" value="cancel">Cancel</button>
+        <button class="danger-button" id="confirm-action" type="submit" value="confirm">Delete</button>
+      </div>
     </form>
   </dialog>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>

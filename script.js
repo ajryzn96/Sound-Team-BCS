@@ -36,6 +36,8 @@ const equipmentForm = document.querySelector("#equipment-form");
 const eventSearch = document.querySelector("#event-search");
 const authScreen = document.querySelector("#auth-screen");
 const appShell = document.querySelector("#app-shell");
+const loadingScreen = document.querySelector("#loading-screen");
+const loadingMessage = document.querySelector("#loading-message");
 const authForm = document.querySelector("#auth-form");
 const authMessage = document.querySelector("#auth-message");
 const authSubmit = document.querySelector("#auth-submit");
@@ -48,6 +50,8 @@ let equipment = [];
 let eventUnsubscribe = null;
 let equipmentUnsubscribe = null;
 let workspaceGeneration = 0;
+let initialEventSnapshot = false;
+let initialEquipmentSnapshot = false;
 
 function readLegacyData(key, validator) {
   try {
@@ -58,7 +62,10 @@ function readLegacyData(key, validator) {
 }
 
 function isValidEvent(event) {
-  return event && typeof event.id === "string" && typeof event.name === "string" && /^\d{4}-\d{2}-\d{2}$/.test(event.date);
+  if (!event || typeof event.id !== "string" || typeof event.name !== "string" || typeof event.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(event.date)) return false;
+  const [year, month, day] = event.date.split("-").map(Number);
+  const date = localDate(event.date);
+  return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
 }
 
 function readLegacyEvents() { return readLegacyData(LEGACY_EVENTS_KEY, isValidEvent); }
@@ -80,6 +87,19 @@ function setSyncStatus(label, state = "ok") {
   status.querySelector("span").textContent = label;
 }
 
+function showLoading(message) {
+  loadingMessage.textContent = message;
+  loadingScreen.hidden = false;
+}
+
+function hideLoading() {
+  loadingScreen.hidden = true;
+}
+
+function finishWorkspaceLoading(generation) {
+  if (generation === workspaceGeneration && initialEventSnapshot && initialEquipmentSnapshot) hideLoading();
+}
+
 function firestoreErrorMessage(error) {
   if (error?.code === "permission-denied") return "Firestore rules blocked this save. Allow signed-in BCS team members to read and write schools/bcs.";
   if (error?.code === "unauthenticated") return "Your sign-in expired. Sign in again to save changes.";
@@ -93,6 +113,9 @@ function reportFirestoreError(error) {
 }
 
 async function connectWorkspaceData(generation) {
+  initialEventSnapshot = false;
+  initialEquipmentSnapshot = false;
+  showLoading("Loading your BCS workspace…");
   setSyncStatus("Connecting to BCS database…", "busy");
   try {
     const [remoteEvents, remoteEquipment] = await Promise.all([
@@ -117,16 +140,31 @@ async function connectWorkspaceData(generation) {
       if (generation !== workspaceGeneration) return;
       events = snapshot.docs.map((item) => ({ ...item.data(), id: item.id })).filter(isValidEvent);
       render();
+      initialEventSnapshot = true;
+      finishWorkspaceLoading(generation);
       setSyncStatus("Synced with BCS", "ok");
-    }, reportFirestoreError);
+    }, (error) => {
+      if (generation !== workspaceGeneration) return;
+      hideLoading();
+      reportFirestoreError(error);
+    });
     equipmentUnsubscribe = onSnapshot(equipmentCollection(), (snapshot) => {
       if (generation !== workspaceGeneration) return;
       equipment = snapshot.docs.map((item) => ({ ...item.data(), id: item.id })).filter((item) => item && typeof item.name === "string" && EQUIPMENT_TYPES.includes(item.type));
       render();
+      initialEquipmentSnapshot = true;
+      finishWorkspaceLoading(generation);
       setSyncStatus("Synced with BCS", "ok");
-    }, reportFirestoreError);
+    }, (error) => {
+      if (generation !== workspaceGeneration) return;
+      hideLoading();
+      reportFirestoreError(error);
+    });
   } catch (error) {
-    if (generation === workspaceGeneration) reportFirestoreError(error);
+    if (generation === workspaceGeneration) {
+      hideLoading();
+      reportFirestoreError(error);
+    }
   }
 }
 
@@ -233,10 +271,15 @@ function renderDashboard() {
     document.querySelectorAll(".duty-name").forEach((node) => node.textContent = next.name);
     const parts = dateParts(next.date);
     document.querySelector(".duty-date").innerHTML = `<span>${parts.month}</span><strong>${parts.day}</strong><small>${parts.weekday.toUpperCase()}</small>`;
-    document.querySelector(".duty-details>span").textContent = `${formatTime(next.time)} setup · ${next.location || "Location TBC"}`;
+    const dutyDetails = `${formatTime(next.time)} setup · ${next.location || "Location TBC"}`;
+    document.querySelector(".duty-details>span").textContent = dutyDetails;
+    document.querySelector("#next-duty-details").textContent = `${parts.weekday}, ${parts.month} ${parts.day} · ${next.location || "Location TBC"}`;
   } else {
     document.querySelector("#next-event-days").textContent = "none scheduled";
     document.querySelectorAll(".duty-name").forEach((node) => node.textContent = "No duty scheduled");
+    document.querySelector(".duty-date").innerHTML = "<span>—</span><strong>—</strong><small>—</small>";
+    document.querySelector(".duty-details>span").textContent = "No upcoming event scheduled";
+    document.querySelector("#next-duty-details").textContent = "No upcoming event scheduled";
   }
 
   const label = new Intl.DateTimeFormat("en", { weekday: "long", month: "long", day: "numeric", year: "numeric" }).format(new Date()).toUpperCase();
@@ -260,14 +303,33 @@ function renderEvents() {
 
 function renderTeam() {
   const duties = upcomingEvents();
-  document.querySelector("#team-duty-list").innerHTML = duties.length
-    ? duties.map((event) => {
+  const next = duties[0];
+  const nextTitle = document.querySelector("#team-next-title");
+  const nextEyebrow = document.querySelector("#team-next-eyebrow");
+  const nextDetails = document.querySelector("#team-next-details");
+  const nextStatus = document.querySelector("#team-next-status");
+  if (next) {
+    const date = dateParts(next.date);
+    nextEyebrow.textContent = `UP NEXT · ${date.long.toUpperCase()}`;
+    nextTitle.textContent = next.name;
+    nextDetails.textContent = `${formatTime(next.time)} setup · ${next.location || "Location TBC"}`;
+    nextStatus.hidden = false;
+  } else {
+    nextEyebrow.textContent = "UP NEXT";
+    nextTitle.textContent = "No upcoming event";
+    nextDetails.textContent = "Create an event to start planning sound duties.";
+    nextStatus.hidden = true;
+  }
+
+  const laterDuties = duties.slice(1);
+  document.querySelector("#team-duty-list").innerHTML = laterDuties.length
+    ? laterDuties.map((event) => {
       const date = dateParts(event.date);
       const gear = eventRequirements(event).length ? ` · Kit: ${eventRequirements(event).join(", ")}` : "";
       const details = `${date.long} · ${formatTime(event.time)} · ${event.location || "Location TBC"}${gear}`;
       return `<div class="team-duty-item"><span class="date-tile"><span>${date.month}</span><strong>${date.day}</strong></span><span class="event-row-copy"><strong>${escapeHtml(event.name)}</strong><small>${escapeHtml(details)}</small></span><span class="status-pill assigned">Sound duty</span></div>`;
     }).join("")
-    : `<div class="empty-state">Create an event to start planning sound duties.</div>`;
+    : `<div class="empty-state">${next ? "No later sound duties scheduled." : "Create an event to start planning sound duties."}</div>`;
 }
 
 function renderUpcomingRequirements() {
@@ -349,6 +411,20 @@ function showToast(message) {
   toast.classList.add("show");
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => toast.classList.remove("show"), 2600);
+}
+
+function confirmDestructiveAction(title, message, actionLabel) {
+  const confirmDialog = document.querySelector("#confirm-dialog");
+  confirmDialog.querySelector("#confirm-title").textContent = title;
+  confirmDialog.querySelector("#confirm-message").textContent = message;
+  const actionButton = confirmDialog.querySelector("#confirm-action");
+  actionButton.textContent = actionLabel;
+  return new Promise((resolve) => {
+    confirmDialog.addEventListener("close", () => {
+      resolve(confirmDialog.returnValue === "confirm");
+    }, { once: true });
+    confirmDialog.showModal();
+  });
 }
 
 function setAuthMessage(message = "", kind = "error") {
@@ -493,11 +569,17 @@ onAuthStateChanged(auth, (user) => {
     equipmentUnsubscribe = null;
     events = [];
     equipment = [];
+    initialEventSnapshot = false;
+    initialEquipmentSnapshot = false;
+    hideLoading();
     setSyncStatus("Sign in to sync", "busy");
     document.querySelector("#account-menu").hidden = true;
     document.querySelector("#profile-button").setAttribute("aria-expanded", "false");
     setAuthMode("signin");
   }
+}, (error) => {
+  hideLoading();
+  setAuthMessage(authErrorMessage(error));
 });
 
 document.querySelector("#profile-button").addEventListener("click", () => {
@@ -512,8 +594,8 @@ document.querySelector("#sign-out-button").addEventListener("click", async () =>
   button.disabled = true;
   try {
     await signOut(auth);
-  } catch {
-    showToast("Couldn’t sign out. Please try again.");
+  } catch (error) {
+    showToast(authErrorMessage(error));
   } finally {
     button.disabled = false;
   }
@@ -570,12 +652,19 @@ document.addEventListener("click", async (event) => {
   if (actionButton) {
     const selected = events.find((item) => item.id === actionButton.dataset.id);
     if (actionButton.dataset.action === "edit" && selected) openEventDialog(selected);
-    if (actionButton.dataset.action === "delete" && selected && window.confirm(`Delete “${selected.name}” from the calendar?`)) {
+    if (actionButton.dataset.action === "delete" && selected && await confirmDestructiveAction(
+      "Delete this event?",
+      `“${selected.name}” will be permanently removed from the calendar.`,
+      "Delete event"
+    )) {
+      showLoading("Deleting event…");
       try {
         await removeEventRecord(selected.id);
         showToast("Event deleted.");
       } catch (error) {
         reportFirestoreError(error);
+      } finally {
+        hideLoading();
       }
     }
   }
@@ -584,12 +673,19 @@ document.addEventListener("click", async (event) => {
   if (equipmentAction) {
     const selectedItem = equipment.find((item) => item.id === equipmentAction.dataset.id);
     if (equipmentAction.dataset.equipmentAction === "edit" && selectedItem) openEquipmentDialog(selectedItem);
-    if (equipmentAction.dataset.equipmentAction === "delete" && selectedItem && window.confirm(`Remove “${selectedItem.name}” from the equipment register?`)) {
+    if (equipmentAction.dataset.equipmentAction === "delete" && selectedItem && await confirmDestructiveAction(
+      "Remove this equipment item?",
+      `“${selectedItem.name}” will be permanently removed from the equipment register.`,
+      "Remove item"
+    )) {
+      showLoading("Removing equipment…");
       try {
         await removeEquipmentRecord(selectedItem.id);
         showToast("Equipment record removed.");
       } catch (error) {
         reportFirestoreError(error);
+      } finally {
+        hideLoading();
       }
     }
   }
@@ -622,7 +718,10 @@ eventForm.addEventListener("submit", async (submitEvent) => {
     notes: document.querySelector("#event-notes").value.trim()
   };
   const saveButton = document.querySelector("#save-event");
+  const saveLabel = saveButton.textContent;
   saveButton.disabled = true;
+  saveButton.textContent = "Saving…";
+  showLoading("Saving event…");
   try {
     await saveEventRecord(nextEvent);
     dialog.close();
@@ -632,6 +731,8 @@ eventForm.addEventListener("submit", async (submitEvent) => {
     reportFirestoreError(error);
   } finally {
     saveButton.disabled = false;
+    saveButton.textContent = saveLabel;
+    hideLoading();
   }
 });
 
@@ -650,7 +751,10 @@ equipmentForm.addEventListener("submit", async (submitEvent) => {
     location: document.querySelector("#equipment-location").value.trim()
   };
   const saveButton = document.querySelector("#save-equipment");
+  const saveLabel = saveButton.textContent;
   saveButton.disabled = true;
+  saveButton.textContent = "Saving…";
+  showLoading("Saving equipment…");
   try {
     await saveEquipmentRecord(item);
     equipmentDialog.close();
@@ -660,6 +764,8 @@ equipmentForm.addEventListener("submit", async (submitEvent) => {
     reportFirestoreError(error);
   } finally {
     saveButton.disabled = false;
+    saveButton.textContent = saveLabel;
+    hideLoading();
   }
 });
 
