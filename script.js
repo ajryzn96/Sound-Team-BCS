@@ -1,3 +1,13 @@
+import { auth } from "./firebase/firebase-config.js";
+import {
+  createUserWithEmailAndPassword,
+  onAuthStateChanged,
+  sendPasswordResetEmail,
+  signInWithEmailAndPassword,
+  signOut,
+  updateProfile
+} from "https://www.gstatic.com/firebasejs/13.2.0/firebase-auth.js";
+
 const STORAGE_KEY = "sounddesk-school-events-v1";
 const EQUIPMENT_STORAGE_KEY = "myown-equipment-register-v1";
 const EQUIPMENT_TYPES = ["Mixer", "Microphones", "Speakers", "Wireless systems", "XLR cables", "DI boxes", "Lighting equipment", "Lighting Console"];
@@ -22,6 +32,13 @@ const eventForm = document.querySelector("#event-form");
 const equipmentDialog = document.querySelector("#equipment-dialog");
 const equipmentForm = document.querySelector("#equipment-form");
 const eventSearch = document.querySelector("#event-search");
+const authScreen = document.querySelector("#auth-screen");
+const appShell = document.querySelector("#app-shell");
+const authForm = document.querySelector("#auth-form");
+const authMessage = document.querySelector("#auth-message");
+const authSubmit = document.querySelector("#auth-submit");
+const authSubmitLabel = authSubmit.querySelector("span");
+let authMode = "signin";
 let activeFilter = "all";
 let toastTimer;
 
@@ -252,6 +269,168 @@ function showToast(message) {
   toastTimer = setTimeout(() => toast.classList.remove("show"), 2600);
 }
 
+function setAuthMessage(message = "", kind = "error") {
+  authMessage.textContent = message;
+  authMessage.className = `auth-message${message ? ` ${kind}` : ""}`;
+  authMessage.hidden = !message;
+}
+
+function setAuthMode(mode) {
+  authMode = mode;
+  const isSignup = mode === "signup";
+  document.querySelectorAll("[data-toggle-password]").forEach((button) => {
+    document.querySelector(`#${button.dataset.togglePassword}`).type = "password";
+    button.textContent = "Show";
+    button.setAttribute("aria-label", "Show password");
+  });
+  const nameField = document.querySelector("#auth-name-field");
+  const confirmField = document.querySelector("#auth-confirm-field");
+  nameField.hidden = !isSignup;
+  confirmField.hidden = !isSignup;
+  document.querySelector("#auth-name").required = isSignup;
+  document.querySelector("#auth-confirm-password").required = isSignup;
+  document.querySelector("#auth-password").autocomplete = isSignup ? "new-password" : "current-password";
+  document.querySelector("#forgot-password").hidden = isSignup;
+  document.querySelector("#auth-title").textContent = isSignup ? "Create your account" : "Welcome back";
+  document.querySelector("#auth-description").textContent = isSignup
+    ? "Join the BCS sound team workspace."
+    : "Sign in to your school events workspace.";
+  document.querySelector("#auth-switch-copy").textContent = isSignup ? "Already have an account?" : "New to the team?";
+  document.querySelector("#auth-mode-toggle").textContent = isSignup ? "Sign in" : "Create an account";
+  authSubmitLabel.textContent = isSignup ? "Create account" : "Sign in";
+  setAuthMessage();
+}
+
+function authErrorMessage(error) {
+  const messages = {
+    "auth/invalid-email": "Enter a valid email address.",
+    "auth/invalid-credential": "That email and password combination wasn’t recognised.",
+    "auth/invalid-login-credentials": "That email and password combination wasn’t recognised.",
+    "auth/wrong-password": "That email and password combination wasn’t recognised.",
+    "auth/user-not-found": "That email and password combination wasn’t recognised.",
+    "auth/email-already-in-use": "An account already exists for this email. Try signing in.",
+    "auth/weak-password": "Choose a password with at least 6 characters.",
+    "auth/too-many-requests": "There have been too many attempts. Wait a little and try again.",
+    "auth/network-request-failed": "Couldn’t reach the sign-in service. Check your internet connection.",
+    "auth/operation-not-allowed": "Email and password sign-in needs to be enabled in Firebase Authentication.",
+    "auth/unauthorized-domain": "This site address needs to be added to Firebase Authentication’s authorised domains."
+  };
+  return messages[error?.code] || "Something went wrong. Please try again.";
+}
+
+function setAccountIdentity(user) {
+  const emailName = user.email?.split("@")[0]?.replace(/[._-]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+  const displayName = user.displayName?.trim() || emailName || "BCS team member";
+  const initials = displayName.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase()
+    || displayName.slice(0, 2).toUpperCase();
+  document.querySelector("#profile-name").textContent = displayName;
+  document.querySelector("#profile-avatar").textContent = initials;
+  document.querySelector("#account-name").textContent = displayName;
+  document.querySelector("#account-email").textContent = user.email || "Signed in";
+  document.querySelector("#current-user-name").textContent = displayName.split(/\s+/)[0];
+}
+
+document.querySelector("#auth-mode-toggle").addEventListener("click", () => {
+  const email = document.querySelector("#auth-email").value;
+  authForm.reset();
+  setAuthMode(authMode === "signin" ? "signup" : "signin");
+  document.querySelector("#auth-email").value = email;
+});
+
+authForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  setAuthMessage();
+  if (!authForm.reportValidity()) return;
+  const email = document.querySelector("#auth-email").value.trim();
+  const password = document.querySelector("#auth-password").value;
+  const name = document.querySelector("#auth-name").value.trim();
+  if (authMode === "signup" && password !== document.querySelector("#auth-confirm-password").value) {
+    setAuthMessage("Those passwords don’t match.");
+    document.querySelector("#auth-confirm-password").focus();
+    return;
+  }
+
+  authSubmit.disabled = true;
+  authSubmitLabel.textContent = authMode === "signup" ? "Creating account…" : "Signing in…";
+  try {
+    if (authMode === "signup") {
+      const credential = await createUserWithEmailAndPassword(auth, email, password);
+      await updateProfile(credential.user, { displayName: name });
+      setAccountIdentity(credential.user);
+    } else {
+      await signInWithEmailAndPassword(auth, email, password);
+    }
+  } catch (error) {
+    setAuthMessage(authErrorMessage(error));
+  } finally {
+    authSubmit.disabled = false;
+    authSubmitLabel.textContent = authMode === "signup" ? "Create account" : "Sign in";
+  }
+});
+
+document.querySelector("#forgot-password").addEventListener("click", async () => {
+  const email = document.querySelector("#auth-email").value.trim();
+  if (!email) {
+    setAuthMessage("Enter your email address and we’ll send a reset link.", "info");
+    document.querySelector("#auth-email").focus();
+    return;
+  }
+  try {
+    await sendPasswordResetEmail(auth, email);
+    setAuthMessage("If an account exists for that email, a password reset link is on its way.", "success");
+  } catch (error) {
+    setAuthMessage(authErrorMessage(error));
+  }
+});
+
+document.querySelectorAll("[data-toggle-password]").forEach((button) => button.addEventListener("click", () => {
+  const input = document.querySelector(`#${button.dataset.togglePassword}`);
+  const show = input.type === "password";
+  input.type = show ? "text" : "password";
+  button.textContent = show ? "Hide" : "Show";
+  button.setAttribute("aria-label", `${show ? "Hide" : "Show"} password`);
+}));
+
+setAuthMode("signin");
+onAuthStateChanged(auth, (user) => {
+  authScreen.hidden = Boolean(user);
+  appShell.hidden = !user;
+  if (user) {
+    authForm.reset();
+    setAccountIdentity(user);
+    setAuthMessage();
+  } else {
+    document.querySelector("#account-menu").hidden = true;
+    document.querySelector("#profile-button").setAttribute("aria-expanded", "false");
+    setAuthMode("signin");
+  }
+});
+
+document.querySelector("#profile-button").addEventListener("click", () => {
+  const menu = document.querySelector("#account-menu");
+  const isOpening = menu.hidden;
+  menu.hidden = !isOpening;
+  document.querySelector("#profile-button").setAttribute("aria-expanded", String(isOpening));
+});
+
+document.querySelector("#sign-out-button").addEventListener("click", async () => {
+  const button = document.querySelector("#sign-out-button");
+  button.disabled = true;
+  try {
+    await signOut(auth);
+  } catch {
+    showToast("Couldn’t sign out. Please try again.");
+  } finally {
+    button.disabled = false;
+  }
+});
+
+document.addEventListener("click", (event) => {
+  if (event.target.closest("#profile-button") || event.target.closest("#account-menu")) return;
+  document.querySelector("#account-menu").hidden = true;
+  document.querySelector("#profile-button").setAttribute("aria-expanded", "false");
+});
+
 function openEventDialog(event = null) {
   eventForm.reset();
   document.querySelector("#event-id").value = event?.id || "";
@@ -375,6 +554,5 @@ equipmentForm.addEventListener("submit", (submitEvent) => {
 });
 
 document.querySelector("#notifications-button").addEventListener("click", () => showToast("You’re all caught up."));
-document.querySelector(".profile-button").addEventListener("click", () => showToast("Signed in as Aaron."));
 
 render();
