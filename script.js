@@ -1,4 +1,4 @@
-import { auth } from "./firebase/firebase-config.js";
+import { auth, db } from "./firebase/firebase-config.js";
 import {
   createUserWithEmailAndPassword,
   onAuthStateChanged,
@@ -7,17 +7,19 @@ import {
   signOut,
   updateProfile
 } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-auth.js";
+import {
+  collection,
+  deleteDoc,
+  doc,
+  getDocs,
+  onSnapshot,
+  setDoc
+} from "https://www.gstatic.com/firebasejs/13.2.0/firebase-firestore.js";
 
-const STORAGE_KEY = "sounddesk-school-events-v1";
-const EQUIPMENT_STORAGE_KEY = "myown-equipment-register-v1";
+const LEGACY_EVENTS_KEY = "sounddesk-school-events-v1";
+const LEGACY_EQUIPMENT_KEY = "myown-equipment-register-v1";
 const EQUIPMENT_TYPES = ["Mixer", "Microphones", "Speakers", "Wireless systems", "XLR cables", "DI boxes", "Lighting equipment", "Lighting Console"];
 const EQUIPMENT_ICONS = ["≋", "♩", "▥", "⌁", "⌁", "◈", "✧", "▤"];
-const seedEvents = [
-  { id: "culture-day", name: "Culture Day", date: "2026-11-20", time: "09:00", location: "Main Hall", requirements: ["Speakers", "Wireless systems", "Mixer"], notes: "Sound check and stage setup from 08:30." },
-  { id: "christmas-quiz", name: "Christmas quiz", date: "2026-12-11", time: "13:30", location: "Assembly Hall", requirements: ["Speakers", "Microphones"], notes: "Four wireless microphones needed." },
-  { id: "school-concert", name: "School concert", date: "2026-12-17", time: "18:00", location: "Main Hall", requirements: ["Speakers", "Microphones", "Mixer", "XLR cables"], notes: "Evening performance." }
-];
-
 const pageTitle = document.querySelector("#page-title");
 const dashboardView = document.querySelector("#dashboard-view");
 const views = {
@@ -41,43 +43,123 @@ const authSubmitLabel = authSubmit.querySelector("span");
 let authMode = "signin";
 let activeFilter = "all";
 let toastTimer;
+let events = [];
+let equipment = [];
+let eventUnsubscribe = null;
+let equipmentUnsubscribe = null;
+let workspaceGeneration = 0;
 
-function loadEvents() {
+function readLegacyData(key, validator) {
   try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if (Array.isArray(saved)) return saved.filter(isValidEvent);
-  } catch { /* Use the starter calendar if browser storage is unavailable. */ }
-  return [...seedEvents];
+    const saved = JSON.parse(localStorage.getItem(key));
+    if (Array.isArray(saved)) return saved.filter(validator);
+  } catch { /* Ignore missing or malformed browser cache during migration. */ }
+  return [];
 }
 
 function isValidEvent(event) {
   return event && typeof event.id === "string" && typeof event.name === "string" && /^\d{4}-\d{2}-\d{2}$/.test(event.date);
 }
 
-let events = loadEvents();
-let equipment = loadEquipment();
-
-function loadEquipment() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(EQUIPMENT_STORAGE_KEY));
-    if (Array.isArray(saved)) return saved.filter((item) => item && typeof item.id === "string" && EQUIPMENT_TYPES.includes(item.type) && typeof item.name === "string");
-  } catch { /* Start with an empty register if browser storage is unavailable. */ }
-  return [];
-}
+function readLegacyEvents() { return readLegacyData(LEGACY_EVENTS_KEY, isValidEvent); }
+function readLegacyEquipment() { return readLegacyData(LEGACY_EQUIPMENT_KEY, (item) => item && typeof item.id === "string" && EQUIPMENT_TYPES.includes(item.type) && typeof item.name === "string"); }
 
 function normalizeRequirement(item) {
   const aliases = { "PA speakers": "Speakers", "Wireless microphones": "Microphones", "Mixing desk": "Mixer", "Cables & stands": "XLR cables" };
   return aliases[item] || item;
 }
 
-function persistEvents() {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(events)); }
-  catch { showToast("Changes are saved for this session only."); }
+function eventsCollection() { return collection(db, "schools", "bcs", "events"); }
+function equipmentCollection() { return collection(db, "schools", "bcs", "equipment"); }
+function eventDocument(id) { return doc(db, "schools", "bcs", "events", id); }
+function equipmentDocument(id) { return doc(db, "schools", "bcs", "equipment", id); }
+
+function setSyncStatus(label, state = "ok") {
+  const status = document.querySelector("#sync-status");
+  status.dataset.state = state;
+  status.querySelector("span").textContent = label;
 }
 
-function persistEquipment() {
-  try { localStorage.setItem(EQUIPMENT_STORAGE_KEY, JSON.stringify(equipment)); }
-  catch { showToast("Changes are saved for this session only."); }
+function firestoreErrorMessage(error) {
+  if (error?.code === "permission-denied") return "Firestore rules blocked this save. Allow signed-in BCS team members to read and write schools/bcs.";
+  if (error?.code === "unauthenticated") return "Your sign-in expired. Sign in again to save changes.";
+  if (error?.code === "unavailable" || error?.code === "network-request-failed") return "The database is unreachable. Check your connection and try again.";
+  return "Firestore couldn’t save this change. Check the database connection and rules.";
+}
+
+function reportFirestoreError(error) {
+  setSyncStatus("Database error", "error");
+  showToast(firestoreErrorMessage(error));
+}
+
+async function connectWorkspaceData(generation) {
+  setSyncStatus("Connecting to BCS database…", "busy");
+  try {
+    const [remoteEvents, remoteEquipment] = await Promise.all([
+      getDocs(eventsCollection()),
+      getDocs(equipmentCollection())
+    ]);
+    if (generation !== workspaceGeneration) return;
+
+    // Move browser records created before Firestore was wired up into the cloud once.
+    const remoteEventIds = new Set(remoteEvents.docs.map((item) => item.id));
+    const legacyEvents = readLegacyEvents().filter((item) => !remoteEventIds.has(item.id));
+    await Promise.all(legacyEvents.map((item) => setDoc(eventDocument(item.id), item)));
+
+    const remoteEquipmentIds = new Set(remoteEquipment.docs.map((item) => item.id));
+    const legacyEquipment = readLegacyEquipment().filter((item) => !remoteEquipmentIds.has(item.id));
+    await Promise.all(legacyEquipment.map((item) => setDoc(equipmentDocument(item.id), item)));
+    if (generation !== workspaceGeneration) return;
+
+    eventUnsubscribe?.();
+    equipmentUnsubscribe?.();
+    eventUnsubscribe = onSnapshot(eventsCollection(), (snapshot) => {
+      if (generation !== workspaceGeneration) return;
+      events = snapshot.docs.map((item) => ({ ...item.data(), id: item.id })).filter(isValidEvent);
+      render();
+      setSyncStatus("Synced with BCS", "ok");
+    }, reportFirestoreError);
+    equipmentUnsubscribe = onSnapshot(equipmentCollection(), (snapshot) => {
+      if (generation !== workspaceGeneration) return;
+      equipment = snapshot.docs.map((item) => ({ ...item.data(), id: item.id })).filter((item) => item && typeof item.name === "string" && EQUIPMENT_TYPES.includes(item.type));
+      render();
+      setSyncStatus("Synced with BCS", "ok");
+    }, reportFirestoreError);
+  } catch (error) {
+    if (generation === workspaceGeneration) reportFirestoreError(error);
+  }
+}
+
+async function saveEventRecord(event) {
+  setSyncStatus("Saving event…", "busy");
+  await setDoc(eventDocument(event.id), event);
+  events = [...events.filter((item) => item.id !== event.id), event];
+  render();
+  setSyncStatus("All changes saved", "ok");
+}
+
+async function removeEventRecord(id) {
+  setSyncStatus("Removing event…", "busy");
+  await deleteDoc(eventDocument(id));
+  events = events.filter((item) => item.id !== id);
+  render();
+  setSyncStatus("All changes saved", "ok");
+}
+
+async function saveEquipmentRecord(item) {
+  setSyncStatus("Saving equipment…", "busy");
+  await setDoc(equipmentDocument(item.id), item);
+  equipment = [...equipment.filter((existing) => existing.id !== item.id), item];
+  render();
+  setSyncStatus("All changes saved", "ok");
+}
+
+async function removeEquipmentRecord(id) {
+  setSyncStatus("Removing equipment…", "busy");
+  await deleteDoc(equipmentDocument(id));
+  equipment = equipment.filter((item) => item.id !== id);
+  render();
+  setSyncStatus("All changes saved", "ok");
 }
 
 function localDate(dateString) {
@@ -396,10 +478,22 @@ onAuthStateChanged(auth, (user) => {
   authScreen.hidden = Boolean(user);
   appShell.hidden = !user;
   if (user) {
+    workspaceGeneration += 1;
+    eventUnsubscribe?.();
+    equipmentUnsubscribe?.();
     authForm.reset();
     setAccountIdentity(user);
     setAuthMessage();
+    connectWorkspaceData(workspaceGeneration);
   } else {
+    workspaceGeneration += 1;
+    eventUnsubscribe?.();
+    equipmentUnsubscribe?.();
+    eventUnsubscribe = null;
+    equipmentUnsubscribe = null;
+    events = [];
+    equipment = [];
+    setSyncStatus("Sign in to sync", "busy");
     document.querySelector("#account-menu").hidden = true;
     document.querySelector("#profile-button").setAttribute("aria-expanded", "false");
     setAuthMode("signin");
@@ -463,7 +557,7 @@ function openEquipmentDialog(item = null, type = EQUIPMENT_TYPES[0]) {
 
 document.querySelector("#equipment-type").innerHTML = EQUIPMENT_TYPES.map((type) => `<option value="${escapeHtml(type)}">${escapeHtml(type)}</option>`).join("");
 
-document.addEventListener("click", (event) => {
+document.addEventListener("click", async (event) => {
   const pageButton = event.target.closest("[data-page]");
   if (pageButton) navigate(pageButton.dataset.page);
 
@@ -477,10 +571,12 @@ document.addEventListener("click", (event) => {
     const selected = events.find((item) => item.id === actionButton.dataset.id);
     if (actionButton.dataset.action === "edit" && selected) openEventDialog(selected);
     if (actionButton.dataset.action === "delete" && selected && window.confirm(`Delete “${selected.name}” from the calendar?`)) {
-      events = events.filter((item) => item.id !== selected.id);
-      persistEvents();
-      render();
-      showToast("Event deleted.");
+      try {
+        await removeEventRecord(selected.id);
+        showToast("Event deleted.");
+      } catch (error) {
+        reportFirestoreError(error);
+      }
     }
   }
 
@@ -489,10 +585,12 @@ document.addEventListener("click", (event) => {
     const selectedItem = equipment.find((item) => item.id === equipmentAction.dataset.id);
     if (equipmentAction.dataset.equipmentAction === "edit" && selectedItem) openEquipmentDialog(selectedItem);
     if (equipmentAction.dataset.equipmentAction === "delete" && selectedItem && window.confirm(`Remove “${selectedItem.name}” from the equipment register?`)) {
-      equipment = equipment.filter((item) => item.id !== selectedItem.id);
-      persistEquipment();
-      renderEquipment();
-      showToast("Equipment record removed.");
+      try {
+        await removeEquipmentRecord(selectedItem.id);
+        showToast("Equipment record removed.");
+      } catch (error) {
+        reportFirestoreError(error);
+      }
     }
   }
 });
@@ -509,7 +607,7 @@ document.querySelector("#cancel-dialog").addEventListener("click", () => dialog.
 document.querySelector("#close-equipment-dialog").addEventListener("click", () => equipmentDialog.close());
 document.querySelector("#cancel-equipment-dialog").addEventListener("click", () => equipmentDialog.close());
 
-eventForm.addEventListener("submit", (submitEvent) => {
+eventForm.addEventListener("submit", async (submitEvent) => {
   submitEvent.preventDefault();
   if (!eventForm.reportValidity()) return;
   const id = document.querySelector("#event-id").value || (globalThis.crypto?.randomUUID?.() ?? `event-${Date.now()}`);
@@ -523,15 +621,21 @@ eventForm.addEventListener("submit", (submitEvent) => {
     requirements: [...document.querySelectorAll('input[name="requirements"]:checked')].map((input) => input.value),
     notes: document.querySelector("#event-notes").value.trim()
   };
-  events = wasEditing ? events.map((item) => item.id === id ? nextEvent : item) : [...events, nextEvent];
-  persistEvents();
-  render();
-  dialog.close();
-  navigate("events");
-  showToast(wasEditing ? "Event updated." : "Event added to the calendar.");
+  const saveButton = document.querySelector("#save-event");
+  saveButton.disabled = true;
+  try {
+    await saveEventRecord(nextEvent);
+    dialog.close();
+    navigate("events");
+    showToast(wasEditing ? "Event updated." : "Event added to the calendar.");
+  } catch (error) {
+    reportFirestoreError(error);
+  } finally {
+    saveButton.disabled = false;
+  }
 });
 
-equipmentForm.addEventListener("submit", (submitEvent) => {
+equipmentForm.addEventListener("submit", async (submitEvent) => {
   submitEvent.preventDefault();
   if (!equipmentForm.reportValidity()) return;
   const idField = document.querySelector("#equipment-id");
@@ -545,12 +649,18 @@ equipmentForm.addEventListener("submit", (submitEvent) => {
     condition: document.querySelector("#equipment-condition").value,
     location: document.querySelector("#equipment-location").value.trim()
   };
-  equipment = wasEditing ? equipment.map((existing) => existing.id === id ? item : existing) : [...equipment, item];
-  persistEquipment();
-  renderEquipment();
-  equipmentDialog.close();
-  navigate("equipment");
-  showToast(wasEditing ? "Equipment record updated." : "Equipment item recorded.");
+  const saveButton = document.querySelector("#save-equipment");
+  saveButton.disabled = true;
+  try {
+    await saveEquipmentRecord(item);
+    equipmentDialog.close();
+    navigate("equipment");
+    showToast(wasEditing ? "Equipment record updated." : "Equipment item recorded.");
+  } catch (error) {
+    reportFirestoreError(error);
+  } finally {
+    saveButton.disabled = false;
+  }
 });
 
 document.querySelector("#notifications-button").addEventListener("click", () => showToast("You’re all caught up."));
