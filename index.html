@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#181818">
+  <title>myown · School events</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar" aria-label="Main sidebar">
+      <a class="brand" href="#dashboard-view" aria-label="myown dashboard">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span>myown</span>
+      </a>
+
+      <div class="school-switcher">
+        <span class="school-avatar">B</span>
+        <span class="school-name"><strong>Ballinteer Community School</strong><small>BCS · Events &amp; sound</small></span>
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg>
+      </div>
+
+      <nav class="nav" aria-label="Main navigation">
+        <p class="nav-caption">Workspace</p>
+        <button class="nav-button active" type="button" data-page="dashboard">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="5" rx="2"/><rect x="13" y="10" width="8" height="11" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/></svg>
+          <span>Dashboard</span>
+        </button>
+        <button class="nav-button" type="button" data-page="events">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>
+          <span>Events</span><span class="nav-count" id="event-count">3</span>
+        </button>
+        <button class="nav-button" type="button" data-page="team">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20v-1.5a6.5 6.5 0 0 1 13 0V20M16 5a3.5 3.5 0 0 1 0 6.8M18 14a5 5 0 0 1 3.5 4.8V20"/></svg>
+          <span>Sound team</span>
+        </button>
+        <button class="nav-button" type="button" data-page="equipment">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v13H4zM8 7V4h8v3M8 12h8M9 16h6"/></svg>
+          <span>Equipment</span><span class="nav-alert" id="equipment-alert" aria-label="Equipment needs attention" hidden></span>
+        </button>
+      </nav>
+
+      <div class="sidebar-bottom">
+        <div class="term-card"><span class="term-icon">✳</span><span><strong>Autumn term</strong><small>2026–27 school year</small></span></div>
+        <button class="profile-button" type="button" aria-label="Account settings">
+          <span class="profile-avatar">AA</span><span class="profile-copy"><strong>Aaron</strong><small>Sound coordinator</small></span>
+          <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="3" cy="8" r=".7"/><circle cx="8" cy="8" r=".7"/><circle cx="13" cy="8" r=".7"/></svg>
+        </button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="breadcrumbs"><span>Ballinteer Community School (BCS)</span><span class="crumb-slash">/</span><strong id="page-title">Dashboard</strong></div>
+        <div class="top-actions">
+          <span class="today-label" id="today-label"></span>
+          <button class="icon-button" id="notifications-button" type="button" aria-label="Notifications">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg><i></i>
+          </button>
+          <button class="primary-button top-create" type="button" data-create-event>
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg><span>New event</span>
+          </button>
+        </div>
+      </header>
+
+      <div class="page-content">
+        <section class="dashboard-view" id="dashboard-view" aria-labelledby="welcome-title">
+          <div class="welcome-row">
+            <div>
+              <p class="eyebrow" id="welcome-date">THURSDAY, NOVEMBER 12, 2026</p>
+              <h1 id="welcome-title">Good morning, Alex <span class="wave">✳</span></h1>
+              <p class="welcome-subtitle">Here’s what’s happening around school.</p>
+            </div>
+            <button class="secondary-button" type="button" data-page="events">
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 10h14M11 4l6 6-6 6"/></svg>View calendar
+            </button>
+          </div>
+
+          <div class="summary-grid">
+            <article class="summary-card events-summary">
+              <div class="summary-icon violet"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg></div>
+              <div class="summary-content"><span class="summary-label">Upcoming events</span><strong class="summary-value" id="summary-event-total">3</strong><span class="summary-note"><span class="live-dot violet-dot"></span>Next one in <b id="next-event-days">8 days</b></span></div>
+              <button class="card-arrow" type="button" data-page="events" aria-label="Open events"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 15 15 5M6 5h9v9"/></svg></button>
+            </article>
+            <article class="summary-card duty-summary">
+              <div class="summary-icon mint"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v13H4zM8 7V4h8v3M8 12h8M9 16h6"/></svg></div>
+              <div class="summary-content"><span class="summary-label">Next sound duty</span><strong class="summary-value duty-name">Culture Day</strong><span class="summary-note"><span class="live-dot mint-dot"></span><b>Fri, Nov 20</b><span>·</span> Main Hall</span></div>
+              <button class="card-arrow" type="button" data-page="team" aria-label="Open sound team"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 15 15 5M6 5h9v9"/></svg></button>
+            </article>
+            <article class="summary-card equipment-summary">
+              <div class="summary-icon amber"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v13H4zM8 7V4h8v3M8 12h8M9 16h6"/></svg></div>
+              <div class="summary-content"><span class="summary-label">Equipment status</span><strong class="summary-value" id="equipment-summary-total">0 <small>pieces</small></strong><span class="summary-note" id="equipment-summary-note">Across 8 equipment types</span></div>
+              <button class="card-arrow" type="button" data-page="equipment" aria-label="Open equipment"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 15 15 5M6 5h9v9"/></svg></button>
+            </article>
+          </div>
+
+          <div class="dashboard-columns">
+            <section class="panel upcoming-panel" aria-labelledby="upcoming-title">
+              <div class="panel-heading">
+                <div><p class="eyebrow">MARK YOUR CALENDAR</p><h2 id="upcoming-title">Upcoming events</h2></div>
+                <button class="text-button" type="button" data-page="events">All events <span>→</span></button>
+              </div>
+              <div class="event-list" id="dashboard-event-list"></div>
+            </section>
+
+            <div class="right-column">
+              <section class="panel duty-panel" aria-labelledby="duty-title">
+                <div class="panel-heading compact-heading"><div><p class="eyebrow">ON THE ROSTER</p><h2 id="duty-title">Next sound team duty</h2></div><button class="more-button" type="button" data-page="team" aria-label="View sound team">···</button></div>
+                <div class="duty-event">
+                  <div class="duty-date"><span>NOV</span><strong>20</strong><small>FRI</small></div>
+                  <div class="duty-details"><strong class="duty-name">Culture Day</strong><span>08:30 setup · Main Hall</span><div class="avatar-stack" aria-label="Andrew, Aaron, and Jaden assigned"><span title="Andrew">AN</span><span title="Aaron">AA</span><span title="Jaden">JA</span><small>3 people assigned</small></div></div>
+                </div>
+                <button class="outline-action" type="button" data-page="team">View duty details <span>→</span></button>
+              </section>
+
+              <section class="panel equipment-panel" aria-labelledby="equipment-title">
+                <div class="panel-heading compact-heading"><div><p class="eyebrow">SCHOOL INVENTORY</p><h2 id="equipment-title">Equipment</h2></div><button class="text-button" type="button" data-page="equipment">View all <span>→</span></button></div>
+                <div id="dashboard-equipment-summary" class="dashboard-equipment-summary"></div>
+              </section>
+            </div>
+          </div>
+
+          <section class="quick-create-strip">
+            <span class="quick-icon">✦</span><span><strong>Planning something new?</strong><small>Add a school event and get your sound team ready.</small></span><button class="secondary-button" type="button" data-create-event>Create an event <span>→</span></button>
+          </section>
+          <footer class="page-footer"><span>myown <span>·</span> Events made easier</span><span>Need a hand? Ask your school administrator.</span></footer>
+        </section>
+
+        <section class="subpage-view" id="events-view" hidden>
+          <div class="subpage-heading"><div><p class="eyebrow">YOUR SCHOOL CALENDAR</p><h1>Events</h1><p class="welcome-subtitle">Create and manage the moments that bring your school together.</p></div><button class="primary-button" type="button" data-create-event><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>New event</button></div>
+          <div class="events-toolbar"><div class="filter-tabs" role="tablist" aria-label="Filter events"><button class="filter-tab selected" type="button" data-filter="all">All events <span id="all-events-count">3</span></button><button class="filter-tab" type="button" data-filter="upcoming">Upcoming</button><button class="filter-tab" type="button" data-filter="past">Past</button></div><label class="event-search"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m13 13 4 4"/></svg><input id="event-search" type="search" placeholder="Search events" aria-label="Search events"></label></div>
+          <div class="managed-event-list" id="managed-event-list"></div>
+        </section>
+
+        <section class="subpage-view" id="team-view" hidden>
+          <div class="subpage-heading"><div><p class="eyebrow">PEOPLE BEHIND THE SHOW</p><h1>Sound team</h1><p class="welcome-subtitle">See what’s coming up and who’s on the sound desk.</p></div></div>
+          <section class="panel team-next-panel"><div class="panel-heading"><div><p class="eyebrow">UP NEXT · FRIDAY, NOVEMBER 20</p><h2>Culture Day</h2></div><span class="status-pill assigned">3 assigned</span></div><p class="team-location">08:30 setup · Main Hall</p><div class="team-roster"><div class="team-person"><span class="person-avatar avatar-lilac">AN</span><span><strong>Andrew</strong><small>Sound team</small></span><span class="roster-check">✓</span></div><div class="team-person"><span class="person-avatar avatar-peach">AA</span><span><strong>Aaron</strong><small>Sound team</small></span><span class="roster-check">✓</span></div><div class="team-person"><span class="person-avatar avatar-blue">JA</span><span><strong>Jaden</strong><small>Sound team</small></span><span class="roster-check">✓</span></div></div></section>
+          <section class="panel schedule-panel"><div class="panel-heading"><div><p class="eyebrow">COMING UP</p><h2>Upcoming sound duties</h2></div></div><div id="team-duty-list" class="team-duty-list"></div></section>
+        </section>
+
+        <section class="subpage-view" id="equipment-view" hidden>
+          <div class="subpage-heading"><div><p class="eyebrow">SCHOOL INVENTORY</p><h1>Equipment</h1><p class="welcome-subtitle">Keep an itemized record of the school’s sound and lighting kit.</p></div><button class="primary-button" type="button" data-add-equipment><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>Add equipment</button></div>
+          <div class="equipment-metrics"><div class="metric-card"><span class="metric-indicator green-indicator"></span><span><strong id="equipment-total-count">0</strong><small>Items recorded</small></span></div><div class="metric-card"><span class="metric-indicator amber-indicator"></span><span><strong id="equipment-ready-count">0</strong><small>Ready to use</small></span></div><div class="metric-card"><span class="metric-indicator red-indicator"></span><span><strong id="equipment-attention-count">0</strong><small>Need attention</small></span></div></div>
+          <section class="panel inventory-panel"><div class="panel-heading"><div><p class="eyebrow">ITEMIZED REGISTER</p><h2>Equipment by type</h2></div><span class="inventory-total" id="equipment-type-total">8 types</span></div><div class="equipment-catalog" id="equipment-catalog"></div></section>
+          <section class="panel inventory-panel requirements-panel"><div class="panel-heading"><div><p class="eyebrow">PLAN AHEAD</p><h2>Upcoming equipment requirements</h2></div></div><div class="requirements-list" id="upcoming-requirements-list"></div></section>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <dialog class="event-dialog" id="event-dialog" aria-labelledby="dialog-title">
+    <form id="event-form" method="dialog">
+      <div class="dialog-heading"><div><p class="eyebrow">SCHOOL CALENDAR</p><h2 id="dialog-title">Create an event</h2></div><button class="dialog-close" type="button" id="close-dialog" aria-label="Close">×</button></div>
+      <input type="hidden" id="event-id">
+      <label class="field-label" for="event-name">Event name</label>
+      <input class="form-input" id="event-name" name="name" list="event-types" placeholder="e.g. School concert" required maxlength="80">
+      <datalist id="event-types"><option value="Sports Day"><option value="School graduation"><option value="Culture Day"><option value="Open Evening"><option value="Christmas quiz"><option value="School concert"><option value="Awards ceremony"></datalist>
+      <div class="form-row"><div><label class="field-label" for="event-date">Event date</label><input class="form-input" id="event-date" name="date" type="date" required></div><div><label class="field-label" for="event-time">Start time</label><input class="form-input" id="event-time" name="time" type="time"></div></div>
+      <label class="field-label" for="event-location">Location</label><input class="form-input" id="event-location" name="location" placeholder="e.g. Main Hall" maxlength="80">
+      <fieldset class="requirements-fieldset"><legend class="field-label">Equipment requirements <span class="optional">Select all that apply</span></legend><div class="requirement-options">
+        <label class="requirement-option"><input type="checkbox" name="requirements" value="Mixer"><span class="checkmark">✓</span><span>Mixer</span></label>
+        <label class="requirement-option"><input type="checkbox" name="requirements" value="Microphones"><span class="checkmark">✓</span><span>Microphones</span></label>
+        <label class="requirement-option"><input type="checkbox" name="requirements" value="Speakers"><span class="checkmark">✓</span><span>Speakers</span></label>
+        <label class="requirement-option"><input type="checkbox" name="requirements" value="Wireless systems"><span class="checkmark">✓</span><span>Wireless systems</span></label>
+        <label class="requirement-option"><input type="checkbox" name="requirements" value="XLR cables"><span class="checkmark">✓</span><span>XLR cables</span></label>
+        <label class="requirement-option"><input type="checkbox" name="requirements" value="DI boxes"><span class="checkmark">✓</span><span>DI boxes</span></label>
+        <label class="requirement-option"><input type="checkbox" name="requirements" value="Lighting equipment"><span class="checkmark">✓</span><span>Lighting equipment</span></label>
+        <label class="requirement-option"><input type="checkbox" name="requirements" value="Lighting Console"><span class="checkmark">✓</span><span>Lighting Console</span></label>
+      </div></fieldset>
+      <label class="field-label" for="event-notes">Notes <span class="optional">Optional</span></label><textarea class="form-input notes-input" id="event-notes" name="notes" placeholder="Anything the team should know?" rows="3" maxlength="240"></textarea>
+      <div class="dialog-actions"><button class="secondary-button" type="button" id="cancel-dialog">Cancel</button><button class="primary-button" type="submit" id="save-event">Create event</button></div>
+    </form>
+  </dialog>
+  <dialog class="event-dialog" id="equipment-dialog" aria-labelledby="equipment-dialog-title">
+    <form id="equipment-form" method="dialog">
+      <div class="dialog-heading"><div><p class="eyebrow">SCHOOL INVENTORY</p><h2 id="equipment-dialog-title">Add equipment</h2></div><button class="dialog-close" type="button" id="close-equipment-dialog" aria-label="Close">×</button></div>
+      <input type="hidden" id="equipment-id">
+      <label class="field-label" for="equipment-type">Equipment type</label><select class="form-input" id="equipment-type" required></select>
+      <label class="field-label" for="equipment-name">Item name</label><input class="form-input" id="equipment-name" placeholder="e.g. Main hall mixer" required maxlength="80">
+      <div class="form-row"><div><label class="field-label" for="equipment-serial">Serial / asset number <span class="optional">Optional</span></label><input class="form-input" id="equipment-serial" maxlength="60"></div><div><label class="field-label" for="equipment-condition">Condition</label><select class="form-input" id="equipment-condition"><option value="Ready">Ready</option><option value="Needs check">Needs check</option><option value="Needs repair">Needs repair</option></select></div></div>
+      <label class="field-label" for="equipment-location">Storage location <span class="optional">Optional</span></label><input class="form-input" id="equipment-location" placeholder="e.g. AV cupboard" maxlength="80">
+      <div class="dialog-actions"><button class="secondary-button" type="button" id="cancel-equipment-dialog">Cancel</button><button class="primary-button" type="submit" id="save-equipment">Add item</button></div>
+    </form>
+  </dialog>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="script.js" defer></script>
+</body>
+</html>
