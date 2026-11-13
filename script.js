@@ -1,9 +1,11 @@
 import { auth, db } from "./firebase/firebase-config.js";
 import {
   createUserWithEmailAndPassword,
+  GoogleAuthProvider,
   onAuthStateChanged,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
+  signInWithPopup,
   signOut,
   updateProfile
 } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-auth.js";
@@ -37,11 +39,14 @@ const eventSearch = document.querySelector("#event-search");
 const authScreen = document.querySelector("#auth-screen");
 const appShell = document.querySelector("#app-shell");
 const loadingScreen = document.querySelector("#loading-screen");
-const loadingMessage = document.querySelector("#loading-message");
 const authForm = document.querySelector("#auth-form");
 const authMessage = document.querySelector("#auth-message");
 const authSubmit = document.querySelector("#auth-submit");
 const authSubmitLabel = authSubmit.querySelector("span");
+const googleSignIn = document.querySelector("#google-sign-in");
+const googleSignInLabel = googleSignIn.querySelector("span");
+const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({ prompt: "select_account" });
 let authMode = "signin";
 let activeFilter = "all";
 let toastTimer;
@@ -50,8 +55,6 @@ let equipment = [];
 let eventUnsubscribe = null;
 let equipmentUnsubscribe = null;
 let workspaceGeneration = 0;
-let initialEventSnapshot = false;
-let initialEquipmentSnapshot = false;
 
 function readLegacyData(key, validator) {
   try {
@@ -87,17 +90,8 @@ function setSyncStatus(label, state = "ok") {
   status.querySelector("span").textContent = label;
 }
 
-function showLoading(message) {
-  loadingMessage.textContent = message;
-  loadingScreen.hidden = false;
-}
-
 function hideLoading() {
   loadingScreen.hidden = true;
-}
-
-function finishWorkspaceLoading(generation) {
-  if (generation === workspaceGeneration && initialEventSnapshot && initialEquipmentSnapshot) hideLoading();
 }
 
 function firestoreErrorMessage(error) {
@@ -113,9 +107,6 @@ function reportFirestoreError(error) {
 }
 
 async function connectWorkspaceData(generation) {
-  initialEventSnapshot = false;
-  initialEquipmentSnapshot = false;
-  showLoading("Loading your BCS workspace…");
   setSyncStatus("Connecting to BCS database…", "busy");
   try {
     const [remoteEvents, remoteEquipment] = await Promise.all([
@@ -140,31 +131,22 @@ async function connectWorkspaceData(generation) {
       if (generation !== workspaceGeneration) return;
       events = snapshot.docs.map((item) => ({ ...item.data(), id: item.id })).filter(isValidEvent);
       render();
-      initialEventSnapshot = true;
-      finishWorkspaceLoading(generation);
       setSyncStatus("Synced with BCS", "ok");
     }, (error) => {
       if (generation !== workspaceGeneration) return;
-      hideLoading();
       reportFirestoreError(error);
     });
     equipmentUnsubscribe = onSnapshot(equipmentCollection(), (snapshot) => {
       if (generation !== workspaceGeneration) return;
       equipment = snapshot.docs.map((item) => ({ ...item.data(), id: item.id })).filter((item) => item && typeof item.name === "string" && EQUIPMENT_TYPES.includes(item.type));
       render();
-      initialEquipmentSnapshot = true;
-      finishWorkspaceLoading(generation);
       setSyncStatus("Synced with BCS", "ok");
     }, (error) => {
       if (generation !== workspaceGeneration) return;
-      hideLoading();
       reportFirestoreError(error);
     });
   } catch (error) {
-    if (generation === workspaceGeneration) {
-      hideLoading();
-      reportFirestoreError(error);
-    }
+    if (generation === workspaceGeneration) reportFirestoreError(error);
   }
 }
 
@@ -470,7 +452,10 @@ function authErrorMessage(error) {
     "auth/weak-password": "Choose a password with at least 6 characters.",
     "auth/too-many-requests": "There have been too many attempts. Wait a little and try again.",
     "auth/network-request-failed": "Couldn’t reach the sign-in service. Check your internet connection.",
-    "auth/operation-not-allowed": "Email and password sign-in needs to be enabled in Firebase Authentication.",
+    "auth/operation-not-allowed": "This sign-in method needs to be enabled in Firebase Authentication.",
+    "auth/popup-blocked": "Your browser blocked the Google sign-in window. Allow pop-ups and try again.",
+    "auth/popup-closed-by-user": "Google sign-in was closed before it finished.",
+    "auth/cancelled-popup-request": "A Google sign-in window is already open.",
     "auth/unauthorized-domain": "This site address needs to be added to Firebase Authentication’s authorised domains."
   };
   return messages[error?.code] || "Something went wrong. Please try again.";
@@ -493,6 +478,22 @@ document.querySelector("#auth-mode-toggle").addEventListener("click", () => {
   authForm.reset();
   setAuthMode(authMode === "signin" ? "signup" : "signin");
   document.querySelector("#auth-email").value = email;
+});
+
+googleSignIn.addEventListener("click", async () => {
+  setAuthMessage();
+  googleSignIn.disabled = true;
+  googleSignInLabel.textContent = "Connecting to Google…";
+  try {
+    await signInWithPopup(auth, googleProvider);
+  } catch (error) {
+    if (error?.code !== "auth/popup-closed-by-user" && error?.code !== "auth/cancelled-popup-request") {
+      setAuthMessage(authErrorMessage(error));
+    }
+  } finally {
+    googleSignIn.disabled = false;
+    googleSignInLabel.textContent = "Continue with Google";
+  }
 });
 
 authForm.addEventListener("submit", async (event) => {
@@ -551,6 +552,7 @@ document.querySelectorAll("[data-toggle-password]").forEach((button) => button.a
 
 setAuthMode("signin");
 onAuthStateChanged(auth, (user) => {
+  hideLoading();
   authScreen.hidden = Boolean(user);
   appShell.hidden = !user;
   if (user) {
@@ -569,9 +571,6 @@ onAuthStateChanged(auth, (user) => {
     equipmentUnsubscribe = null;
     events = [];
     equipment = [];
-    initialEventSnapshot = false;
-    initialEquipmentSnapshot = false;
-    hideLoading();
     setSyncStatus("Sign in to sync", "busy");
     document.querySelector("#account-menu").hidden = true;
     document.querySelector("#profile-button").setAttribute("aria-expanded", "false");
@@ -657,14 +656,11 @@ document.addEventListener("click", async (event) => {
       `“${selected.name}” will be permanently removed from the calendar.`,
       "Delete event"
     )) {
-      showLoading("Deleting event…");
       try {
         await removeEventRecord(selected.id);
         showToast("Event deleted.");
       } catch (error) {
         reportFirestoreError(error);
-      } finally {
-        hideLoading();
       }
     }
   }
@@ -678,14 +674,11 @@ document.addEventListener("click", async (event) => {
       `“${selectedItem.name}” will be permanently removed from the equipment register.`,
       "Remove item"
     )) {
-      showLoading("Removing equipment…");
       try {
         await removeEquipmentRecord(selectedItem.id);
         showToast("Equipment record removed.");
       } catch (error) {
         reportFirestoreError(error);
-      } finally {
-        hideLoading();
       }
     }
   }
@@ -721,7 +714,6 @@ eventForm.addEventListener("submit", async (submitEvent) => {
   const saveLabel = saveButton.textContent;
   saveButton.disabled = true;
   saveButton.textContent = "Saving…";
-  showLoading("Saving event…");
   try {
     await saveEventRecord(nextEvent);
     dialog.close();
@@ -732,7 +724,6 @@ eventForm.addEventListener("submit", async (submitEvent) => {
   } finally {
     saveButton.disabled = false;
     saveButton.textContent = saveLabel;
-    hideLoading();
   }
 });
 
@@ -754,7 +745,6 @@ equipmentForm.addEventListener("submit", async (submitEvent) => {
   const saveLabel = saveButton.textContent;
   saveButton.disabled = true;
   saveButton.textContent = "Saving…";
-  showLoading("Saving equipment…");
   try {
     await saveEquipmentRecord(item);
     equipmentDialog.close();
@@ -765,7 +755,6 @@ equipmentForm.addEventListener("submit", async (submitEvent) => {
   } finally {
     saveButton.disabled = false;
     saveButton.textContent = saveLabel;
-    hideLoading();
   }
 });
 
