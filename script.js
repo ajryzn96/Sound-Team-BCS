@@ -95,10 +95,19 @@ function hideLoading() {
 }
 
 function firestoreErrorMessage(error) {
+  if (error?.code === "app/write-timeout") return "Firestore has not confirmed this save yet. Check your connection; if this continues, verify Firestore is enabled and its rules allow signed-in BCS users to write.";
   if (error?.code === "permission-denied") return "Firestore rules blocked this save. Allow signed-in BCS team members to read and write schools/bcs.";
   if (error?.code === "unauthenticated") return "Your sign-in expired. Sign in again to save changes.";
   if (error?.code === "unavailable" || error?.code === "network-request-failed") return "The database is unreachable. Check your connection and try again.";
   return "Firestore couldn’t save this change. Check the database connection and rules.";
+}
+
+function withFirestoreWriteTimeout(write, timeoutMs = 15000) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(Object.assign(new Error("Firestore write timed out"), { code: "app/write-timeout" })), timeoutMs);
+  });
+  return Promise.race([write, timeout]).finally(() => clearTimeout(timer));
 }
 
 function reportFirestoreError(error) {
@@ -152,7 +161,7 @@ async function connectWorkspaceData(generation) {
 
 async function saveEventRecord(event) {
   setSyncStatus("Saving event…", "busy");
-  await setDoc(eventDocument(event.id), event);
+  await withFirestoreWriteTimeout(setDoc(eventDocument(event.id), event));
   events = [...events.filter((item) => item.id !== event.id), event];
   render();
   setSyncStatus("All changes saved", "ok");
@@ -168,7 +177,7 @@ async function removeEventRecord(id) {
 
 async function saveEquipmentRecord(item) {
   setSyncStatus("Saving equipment…", "busy");
-  await setDoc(equipmentDocument(item.id), item);
+  await withFirestoreWriteTimeout(setDoc(equipmentDocument(item.id), item));
   equipment = [...equipment.filter((existing) => existing.id !== item.id), item];
   render();
   setSyncStatus("All changes saved", "ok");
@@ -699,8 +708,10 @@ document.querySelector("#cancel-equipment-dialog").addEventListener("click", () 
 eventForm.addEventListener("submit", async (submitEvent) => {
   submitEvent.preventDefault();
   if (!eventForm.reportValidity()) return;
-  const id = document.querySelector("#event-id").value || (globalThis.crypto?.randomUUID?.() ?? `event-${Date.now()}`);
-  const wasEditing = Boolean(document.querySelector("#event-id").value);
+  const eventIdField = document.querySelector("#event-id");
+  const wasEditing = Boolean(eventIdField.value);
+  const id = eventIdField.value || (globalThis.crypto?.randomUUID?.() ?? `event-${Date.now()}`);
+  eventIdField.value = id;
   const nextEvent = {
     id,
     name: document.querySelector("#event-name").value.trim(),
@@ -731,8 +742,9 @@ equipmentForm.addEventListener("submit", async (submitEvent) => {
   submitEvent.preventDefault();
   if (!equipmentForm.reportValidity()) return;
   const idField = document.querySelector("#equipment-id");
-  const id = idField.value || (globalThis.crypto?.randomUUID?.() ?? `equipment-${Date.now()}`);
   const wasEditing = Boolean(idField.value);
+  const id = idField.value || (globalThis.crypto?.randomUUID?.() ?? `equipment-${Date.now()}`);
+  idField.value = id;
   const item = {
     id,
     type: document.querySelector("#equipment-type").value,
